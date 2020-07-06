@@ -84,14 +84,16 @@ function CityWeather(weatherData) {
 
 
 
-app.get('*', (req, res) => {
+app.get('*', notFound);
+
+app.use(errors);
+
+function notFound(req,res){
     res.status(404).send('Not Found');
-});
-
-app.use((error, req, res) => {
+}
+function errors(error, req, res){
     res.status(500).send(error);
-});
-
+}
 app.listen(PORT, () => {
     console.log('listening on port 5000');
 })
