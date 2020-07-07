@@ -46,20 +46,22 @@ function locationData(city) {
     return superagent.get(url)
         .then(geoData => {
             const newLocation = new Cities(city, geoData.body);
+            // console.log(latArray);
+
             return newLocation
         })
 }
 
 
+var latArray;
+var lonArray;
 
 
 
 function weatherHandler(req, res) {
     const city = req.query.city;
-    // const weatherData = require('./data/weather.json');
-
     weatherData(city)
-        .then( allNewWeather =>{
+        .then(allNewWeather => {
             res.send(allNewWeather);
         })
 }
@@ -67,13 +69,18 @@ function weatherHandler(req, res) {
 
 function weatherData(city) {
     let weatherKey = process.env.WEATHER_API_KEY;
-    let weatherUrl = `https://api.weatherbit.io/v2.0/forecast/daily?city=${city}&key=${weatherKey}`;
+    let get_Lat = latArray;
+    let get_Lon = lonArray;
+    let weatherUrl = `https://api.weatherbit.io/v2.0/forecast/daily?lat=${get_Lat}&lon=${get_Lon}&key=${weatherKey}`;
+
 
     return superagent.get(weatherUrl)
         .then(weaData => {
             let arr = weaData.body.data;
             let allNewWeather = arr.map(item => {
                 let newWeather = new CityWeather(item);
+                console.log(newWeather);
+                
                 return newWeather;
             })
             allNewWeather.splice(8);
@@ -84,25 +91,49 @@ function weatherData(city) {
 }
 
 
-function trailsHandler(req,res){
+function trailsHandler(req, res) {
     const city = req.query.city;
-    trailsData(city);
+
+    // trailsData(city)
+    //     .then(allNewTrails => {
+    //         res.send(allNewTrails);
+    //     })
+
+    trailsData(city)
+    .then( allNewTrails =>{
+        res.send(allNewTrails);
+    })
 
 }
 
-function trailsData(city){
-    let trailsKey = process.env.TRAIL_API_KEY; 
-    let get_Lat, get_Lon;
-    locationData(city)
-        .then((info) =>{
-        get_Lat = info.latitude;
-        get_Lon = info.longitude;
-        let trailsUrl = `https://www.hikingproject.com/data/get-trails?lat=${get_Lat}&lon=${get_Lon}&key=${trailsKey}`;
-        // console.log(trailsUrl);
-    })
-    
-    
+function trailsData(city) {
+    let trailsKey = process.env.TRAIL_API_KEY;
+    let get_Lat = latArray;
+    let get_Lon = lonArray;
+    let trailsUrl = `https://www.hikingproject.com/data/get-trails?lat=${get_Lat}&lon=${get_Lon}&key=${trailsKey}`;
+    // console.log(trailsUrl);
 
+    return superagent.get(trailsUrl)
+        .then(getTrailss => {
+            let arr = getTrailss.body.trails;
+            let allNewTrails = arr.map(item => {
+                let newtrail = new CityTrils(item);
+                return newtrail;
+            })
+            return allNewTrails;
+        })
+
+    // return superagent.get(weatherUrl)
+    // .then(weaData => {
+    //     let arr = weaData.body.data;
+    //     let allNewWeather = arr.map(item => {
+    //         let newWeather = new CityWeather(item);
+    //         return newWeather;
+    //     })
+    //     allNewWeather.splice(8);
+    //     return allNewWeather;
+
+    // })
 }
 
 function Cities(city, geoData) {
@@ -114,7 +145,9 @@ function Cities(city, geoData) {
     this.formatted_query = geoData[0].display_name;
     this.latitude = geoData[0].lat;
     this.longitude = geoData[0].lon;
-
+    // latArray.push(this.latitude);
+    lonArray = this.longitude;
+    latArray = this.latitude;
 }
 
 
@@ -126,8 +159,18 @@ function CityWeather(weatherData) {
     this.time = day[dateFormat.getDay()] + " " + months[dateFormat.getMonth()] + " " + dateFormat.getDate() + " " + dateFormat.getFullYear();
 }
 
-function CityTrils(trailsData){
-    // this.name = trailsData.
+function CityTrils(trailsData) {
+    this.name = trailsData.name;
+    this.location = trailsData.location;
+    this.length = trailsData.length;
+    this.starts = trailsData.starts;
+    this.star_votes = trailsData.starVotes;
+    this.summary = trailsData.summary;
+    this.trail_url = trailsData.url;
+    this.conditions = trailsData.conditionStatus;
+    // let date = trailsData.conditionDate.splite(' ');
+    this.condition_date = trailsData.conditionDate;
+    // this.condition_time = date[1];
 }
 
 
