@@ -8,6 +8,8 @@ const cors = require('cors');
 // .env will contain port and all APIs keys
 require('dotenv').config();
 
+// superAgent
+const superagent = require('superagent');
 ///////////////////////////////
 // install them in your terminal: npm i express cors dotenv
 //////////////////////////////
@@ -19,32 +21,89 @@ const app = express();
 app.use(cors());
 
 app.get('/', (require, response) => {
-    response.status(200).send('testing');
+    response.status(200).send('Welcome to home page');
 })
 
-app.get('/location', (request, response) => {
+app.get('/location', locationHandler);
+app.get('/weather', weatherHandler);
+app.get('/trails', trailsHandler);
+
+
+function locationHandler(request, response) {
     const city = request.query.city;
-    const geoData = require('./data/location.json');
+    // const geoData = require('./data/location.json');
+    locationData(city)
+        .then(newLocation => {
+            response.send(newLocation);
+        })
+}
 
-    const newLocation = new Cities(city, geoData);
-    response.send(newLocation);
 
-})
+function locationData(city) {
 
-app.get('/weather', (req, res) => {
+    let key = process.env.GEOCODE_API_KEY;
+    let url = `https://eu1.locationiq.com/v1/search.php?key=${key}&q=${city}&format=json`;
+    return superagent.get(url)
+        .then(geoData => {
+            const newLocation = new Cities(city, geoData.body);
+            return newLocation
+        })
+}
+
+
+
+
+
+function weatherHandler(req, res) {
     const city = req.query.city;
-    const weatherData = require('./data/weather.json');
-    let arr = weatherData.data;
-    let allNewWeather = [];
+    // const weatherData = require('./data/weather.json');
+
+    weatherData(city)
+        .then( allNewWeather =>{
+            res.send(allNewWeather);
+        })
+}
 
 
-    arr.forEach(item => {
-        let newWeather = new CityWeather(item);
-        allNewWeather.push(newWeather);
+function weatherData(city) {
+    let weatherKey = process.env.WEATHER_API_KEY;
+    let weatherUrl = `https://api.weatherbit.io/v2.0/forecast/daily?city=${city}&key=${weatherKey}`;
+
+    return superagent.get(weatherUrl)
+        .then(weaData => {
+            let arr = weaData.body.data;
+            let allNewWeather = arr.map(item => {
+                let newWeather = new CityWeather(item);
+                return newWeather;
+            })
+            allNewWeather.splice(8);
+            return allNewWeather;
+
+        })
+
+}
+
+
+function trailsHandler(req,res){
+    const city = req.query.city;
+    trailsData(city);
+
+}
+
+function trailsData(city){
+    let trailsKey = process.env.TRAIL_API_KEY; 
+    let get_Lat, get_Lon;
+    locationData(city)
+        .then((info) =>{
+        get_Lat = info.latitude;
+        get_Lon = info.longitude;
+        let trailsUrl = `https://www.hikingproject.com/data/get-trails?lat=${get_Lat}&lon=${get_Lon}&key=${trailsKey}`;
+        // console.log(trailsUrl);
     })
-    res.send(allNewWeather);
-})
+    
+    
 
+}
 
 function Cities(city, geoData) {
     //     "search_query": "seattle",
@@ -60,19 +119,6 @@ function Cities(city, geoData) {
 
 
 function CityWeather(weatherData) {
-
-    // [
-    //     {
-    //       "forecast": "Partly cloudy until afternoon.",
-    //       "time": "Mon Jan 01 2001"
-    //     },
-    //     {
-    //       "forecast": "Mostly cloudy in the morning.",
-    //       "time": "Tue Jan 02 2001"
-    //     },
-    //     ...
-    //   ]
-
     this.forecast = weatherData.weather.description;
     var dateFormat = new Date(weatherData.valid_date);
     var months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -80,7 +126,9 @@ function CityWeather(weatherData) {
     this.time = day[dateFormat.getDay()] + " " + months[dateFormat.getMonth()] + " " + dateFormat.getDate() + " " + dateFormat.getFullYear();
 }
 
-
+function CityTrils(trailsData){
+    // this.name = trailsData.
+}
 
 
 
@@ -88,10 +136,10 @@ app.get('*', notFound);
 
 app.use(errors);
 
-function notFound(req,res){
+function notFound(req, res) {
     res.status(404).send('Not Found');
 }
-function errors(error, req, res){
+function errors(error, req, res) {
     res.status(500).send(error);
 }
 app.listen(PORT, () => {
