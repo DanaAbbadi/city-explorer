@@ -1,15 +1,18 @@
 'use strict';
+require('dotenv').config();
 
 const express = require('express');
 
 // for secuirty
 const cors = require('cors');
+const pg = require('pg');
+const client = new pg.Client(process.env.DATABASE_URL);
 
 // .env will contain port and all APIs keys
-require('dotenv').config();
 
 // superAgent
 const superagent = require('superagent');
+
 ///////////////////////////////
 // install them in your terminal: npm i express cors dotenv
 //////////////////////////////
@@ -41,15 +44,34 @@ function locationHandler(request, response) {
 
 function locationData(city) {
 
-    let key = process.env.GEOCODE_API_KEY;
-    let url = `https://eu1.locationiq.com/v1/search.php?key=${key}&q=${city}&format=json`;
-    return superagent.get(url)
-        .then(geoData => {
-            const newLocation = new Cities(city, geoData.body);
-            // console.log(latArray);
+    let SQL = `SELECT * FROM locations where location_name =$1;`;
+    let values = [city];
+    return client.query(SQL, values)
+        .then(results => {
+            if (results.rowCount) {
+                return results.rows;
+            }
+            else {
+                let key = process.env.GEOCODE_API_KEY;
+                let url = `https://eu1.locationiq.com/v1/search.php?key=${key}&q=${city}&format=json`;
 
-            return newLocation
+
+
+                return superagent.get(url)
+                    .then(geoData => {
+                        const newLocation = new Cities(city, geoData.body);
+                        let SQL = `INSERT INTO locations (location_name,formated_query,location_lon,location_lat) VALUES($1,$2,$3,$4)`;
+                        let safeValues = [city, newLocation.formatted_query, newLocation.latitude, newLocation.longitude];
+                        return client.query(SQL, safeValues)
+                            .then(results => {
+                                return newLocation
+                            })
+                    })
+            }
+
         })
+
+
 }
 
 
@@ -68,27 +90,30 @@ function weatherHandler(req, res) {
 
 
 function weatherData(city) {
-    let weatherKey = process.env.WEATHER_API_KEY;
-    let get_Lat = latArray;
-    let get_Lon = lonArray;
-    let weatherUrl = `https://api.weatherbit.io/v2.0/forecast/daily?lat=${get_Lat}&lon=${get_Lon}&key=${weatherKey}`;
+                 let weatherKey = process.env.WEATHER_API_KEY;
+                let get_Lat = latArray;
+                let get_Lon = lonArray;
+                let weatherUrl = `https://api.weatherbit.io/v2.0/forecast/daily?lat=${get_Lat}&lon=${get_Lon}&key=${weatherKey}`;
+
+                let allNewWeather;
+                return superagent.get(weatherUrl)
+                    .then(weaData => {
+                        let arr = weaData.body.data;
+                        allNewWeather = arr.map(item => {
+                            let newWeather = new CityWeather(item);
+                            return newWeather;
+
+                        })
+                        allNewWeather.splice(8);
+                        return allNewWeather;
+
+                    })
+            }
+      
 
 
-    return superagent.get(weatherUrl)
-        .then(weaData => {
-            let arr = weaData.body.data;
-            let allNewWeather = arr.map(item => {
-                let newWeather = new CityWeather(item);
-                console.log(newWeather);
-                
-                return newWeather;
-            })
-            allNewWeather.splice(8);
-            return allNewWeather;
 
-        })
 
-}
 
 
 function trailsHandler(req, res) {
@@ -100,9 +125,9 @@ function trailsHandler(req, res) {
     //     })
 
     trailsData(city)
-    .then( allNewTrails =>{
-        res.send(allNewTrails);
-    })
+        .then(allNewTrails => {
+            res.send(allNewTrails);
+        })
 
 }
 
@@ -185,10 +210,13 @@ function notFound(req, res) {
 function errors(error, req, res) {
     res.status(500).send(error);
 }
-app.listen(PORT, () => {
-    console.log('listening on port 5000');
-})
 
 
 
+client.connect()
+    .then(() => {
+        app.listen(PORT, () =>
+            console.log(`listening on ${PORT}`)
+        );
+    })
 
